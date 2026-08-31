@@ -1,0 +1,210 @@
+{% extends "base.html" %}
+
+{% block title %}PPAP | 메인{% endblock %}
+
+{% block body_class %}landing-page{% endblock %}
+
+{% block content %}
+<section class="hero-panel hero-map-layout">
+    <article class="glass-card map-card hero-map-card">
+        <div class="section-head compact-head">
+            <p class="eyebrow">적용 권역</p>
+            <h2>선택한 법령의 적용 권역</h2>
+            <p class="section-copy">GDPR 또는 CCPA를 선택하면, 한국에서 해당 권역으로 이어지는 연결선과 색상이 활성화됩니다.</p>
+        </div>
+
+        <div class="world-map-scene {% if 'GDPR' in selected_regulations %}is-gdpr{% endif %} {% if 'CCPA' in selected_regulations %}is-ccpa{% endif %}" data-regulation-map>
+            <div class="hero-world-map-stage">
+                <img class="real-world-map-image" src="{{ url_for('static', filename='world-map-realistic.svg') }}" alt="세계 지도">
+                <svg viewBox="0 0 950 520" class="map-overlay" aria-hidden="true">
+                    <defs>
+                        <linearGradient id="routeGradientGdpr" x1="0" x2="1">
+                            <stop offset="0%" stop-color="#0b5ed7" />
+                            <stop offset="100%" stop-color="#2fa7ff" />
+                        </linearGradient>
+                        <linearGradient id="routeGradientCcpa" x1="0" x2="1">
+                            <stop offset="0%" stop-color="#147d64" />
+                            <stop offset="100%" stop-color="#37c59c" />
+                        </linearGradient>
+                    </defs>
+
+                    <g class="region-halos">
+                        <ellipse class="halo halo-gdpr" cx="532" cy="168" rx="64" ry="42" />
+                        <ellipse class="halo halo-ccpa" cx="270" cy="205" rx="98" ry="54" />
+                    </g>
+
+                    <g class="routes">
+                        <path class="route route-gdpr" d="M764 253 C718 213,633 183,533 169" />
+                        <path class="route route-ccpa" d="M764 253 C682 186,477 156,275 201" />
+                    </g>
+
+                    <g class="dots">
+                        <circle class="dot dot-korea" cx="764" cy="253" r="8" />
+                        <circle class="dot dot-eu" cx="533" cy="169" r="8" />
+                        <circle class="dot dot-us" cx="275" cy="201" r="8" />
+                        <circle class="pulse pulse-korea" cx="764" cy="253" r="12" />
+                    </g>
+
+                    <g class="map-labels">
+                        <text x="783" y="247">대한민국</text>
+                        <text x="482" y="156">EU·EEA</text>
+                        <text x="203" y="190">캘리포니아·미국</text>
+                    </g>
+                </svg>
+            </div>
+
+            <div class="map-legend">
+                <span class="legend-item legend-korea">출발 지점 · 대한민국</span>
+                <span class="legend-item legend-gdpr">GDPR · EU 일반 개인정보 보호 규정</span>
+                <span class="legend-item legend-ccpa">CCPA · 캘리포니아 소비자 개인정보 보호법</span>
+            </div>
+        </div>
+    </article>
+
+    <article class="glass-card selector-card hero-selector-card">
+        <div class="section-head">
+            <p class="eyebrow">진단 시작</p>
+            <h2>진단할 법령을 선택하세요</h2>
+            <p class="section-copy">GDPR과 CCPA 중 최소 1개, 최대 2개까지 선택할 수 있습니다.</p>
+        </div>
+
+        <form method="post" action="{{ url_for('start_diagnosis') }}" class="regulation-form" data-regulation-form>
+            <div class="selection-grid">
+                <label class="selection-tile {% if 'GDPR' in selected_regulations %}is-selected{% endif %}" data-card-toggle>
+                    <input type="checkbox" name="selected_regulations" value="GDPR" {% if 'GDPR' in selected_regulations %}checked{% endif %} data-gdpr-toggle>
+                    <span class="tile-topline">EU</span>
+                    <strong>GDPR</strong>
+                    <span class="tile-copy">EU 일반 개인정보 보호 규정</span>
+                    <small>개인정보 범위 · 처리 근거 · 국외이전 · 미성년자 · 자동결정 · 쿠키</small>
+                </label>
+
+                <label class="selection-tile {% if 'CCPA' in selected_regulations %}is-selected{% endif %}" data-card-toggle>
+                    <input type="checkbox" name="selected_regulations" value="CCPA" {% if 'CCPA' in selected_regulations %}checked{% endif %}>
+                    <span class="tile-topline">캘리포니아</span>
+                    <strong>CCPA</strong>
+                    <span class="tile-copy">캘리포니아 소비자 개인정보 보호법</span>
+                    <small>수집 고지 · 판매/공유 · SPI · 소비자 요청 · 미성년자 · ADMT · 쿠키</small>
+                </label>
+            </div>
+
+            <div class="role-panel {% if 'GDPR' not in selected_regulations %}is-hidden{% endif %}" data-gdpr-role-panel>
+                <div class="role-panel-copy">
+                    <strong>GDPR 역할 선택</strong>
+                    <p>GDPR 진단 시 적용할 현재 역할을 선택하세요.</p>
+                </div>
+                <div class="inline-options two-up">
+                    <label class="choice-chip {% if gdpr_role == 'controller' %}is-checked{% endif %}">
+                        <input type="radio" name="gdpr_role" value="controller" {% if gdpr_role == 'controller' %}checked{% endif %}>
+                        <span>개인정보처리자</span>
+                    </label>
+                    <label class="choice-chip {% if gdpr_role == 'processor' %}is-checked{% endif %}">
+                        <input type="radio" name="gdpr_role" value="processor" {% if gdpr_role == 'processor' %}checked{% endif %}>
+                        <span>처리수탁자</span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="helper-row selection-helper">
+                <span>선택한 법령 정보는 서버 측 세션 상태에 저장됩니다.</span>
+                {% if selected_regulations %}
+                    <span>현재 선택: {{ selected_regulation_text }}</span>
+                {% endif %}
+            </div>
+
+            <button type="submit" class="primary-button large-button">진단 시작</button>
+        </form>
+    </article>
+</section>
+
+<section class="content-grid intro-selector-grid">
+    <article class="glass-card intro-card">
+        <div class="section-head">
+            <p class="eyebrow">프로젝트 소개</p>
+        </div>
+
+        <div class="feature-list intro-sections">
+            <article>
+                <strong>개요</strong>
+                <p>{{ project_overview }}</p>
+            </article>
+
+            <article>
+                <strong>배경</strong>
+                <p>
+                    국내 디지털 서비스의 해외 진출이 커질수록, 회원가입·광고·분석·결제·클라우드 운영
+                    <br class="desktop-line-break">
+                    과정에서 국외이전, 쿠키, 소비자 권리 대응, 미성년자 보호 같은 개인정보 이슈도 함께 복잡해집니다.
+                </p>
+                <p>
+                    실제로 Meta의 EU-US 데이터 이전 제재, Sephora의 CCPA 집행,
+                    Instagram의 아동 개인정보 제재
+                    <br class="desktop-line-break">
+                    사례처럼 지역별 프라이버시 의무를 놓치면
+                    서비스 운영과 확장 전략 자체가 영향을 받을 수 있습니다.
+                </p>
+
+                <div class="stats-card">
+                    <div class="stats-head">
+                        <strong>{{ background_stats.subtitle }}</strong>
+                        <span>{{ background_stats.title }}</span>
+                    </div>
+                    <div class="mini-chart" aria-label="한국 ICT 서비스 수출 통계 그래프">
+                        {% for bar in background_stats.bars %}
+                            <div class="mini-bar-item">
+                                <div class="mini-bar-track">
+                                    <span class="mini-bar-fill" style="height: {{ (bar.value / background_stats.max_value) * 100 }}%;"></span>
+                                </div>
+                                <strong>{{ bar.label }}</strong>
+                                <small>{{ bar.year }}</small>
+                            </div>
+                        {% endfor %}
+                    </div>
+                    <p class="stats-summary">{{ background_stats.summary }}</p>
+                    <a class="source-link" href="{{ background_stats.url }}" target="_blank" rel="noopener">출처 · {{ background_stats.source }}</a>
+                </div>
+
+            </article>
+
+            <div class="case-effect-grid">
+                <article class="case-column-card">
+                    <strong>사례</strong>
+                    <div class="case-grid">
+                        {% for case in background_cases %}
+                            <article class="case-card">
+                                <strong>{{ case.title }}</strong>
+                                <p>{{ case.detail }}</p>
+                                <a class="source-link" href="{{ case.url }}" target="_blank" rel="noopener">출처 · {{ case.source }}</a>
+                            </article>
+                        {% endfor %}
+                    </div>
+                </article>
+
+                <article class="process-column-card">
+                    <div class="process-head">
+                        <strong>진단 과정</strong>
+                        <span>사용자에게 보이는 흐름</span>
+                    </div>
+                    <div class="process-grid">
+                        {% for step in process_steps %}
+                            <article class="process-card">
+                                <span class="process-step">{{ step.step }}</span>
+                                <strong>{{ step.title }}</strong>
+                                <p>{{ step.detail }}</p>
+                            </article>
+                        {% endfor %}
+                    </div>
+                </article>
+
+                <article class="effect-column-card">
+                    <strong>기대효과</strong>
+                    <ul class="bullet-list compact-bullets">
+                        {% for effect in expected_effects %}
+                            <li>{{ effect }}</li>
+                        {% endfor %}
+                    </ul>
+                </article>
+            </div>
+        </div>
+    </article>
+</section>
+{% endblock %}
