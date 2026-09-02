@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+
+{% block title %}PPAP | 결과{% endblock %}
+
+{% block body_class %}result-page{% endblock %}
+
+{% block content %}
+<section class="result-hero content-grid two-col">
+    <article class="glass-card score-card">
+        <div class="section-head compact-head">
+            <p class="eyebrow">규정 준수 수준</p>
+            <h1>현재 진단 기준상 {{ score }}%</h1>
+            <p class="section-copy">응답 완료율과 별도로, 실제 응답 결과에 대한 상태값을 평균화해 산출한 초기 프로토타입 지표입니다.</p>
+        </div>
+        <div class="score-ring" style="--score: {{ score }}%;">
+            <div>
+                <strong>{{ score }}%</strong>
+                <span>준수 수준</span>
+            </div>
+        </div>
+        <div class="metric-grid two-up">
+            <article>
+                <strong>응답 완료율</strong>
+                <span>{{ completion_rate }}% ({{ completion_count }} / {{ total_questions }})</span>
+            </article>
+            <article>
+                <strong>선택 규정</strong>
+                <span>{{ selected_regulation_text }}</span>
+            </article>
+        </div>
+    </article>
+
+    <article class="glass-card spotlight-card">
+        <div class="section-head compact-head">
+            <p class="eyebrow">4단계 평가 매트릭스</p>
+            <h2>가장 먼저 볼 항목</h2>
+        </div>
+        <div class="status-grid">
+            {% for card in status_cards %}
+                <article class="status-card status-{{ card.key }}">
+                    <strong>{{ card.label }}</strong>
+                    <span class="status-count">{{ card.count }}건</span>
+                    <small>{{ card.description }}</small>
+                </article>
+            {% endfor %}
+        </div>
+        {% if unanswered_count %}
+            <div class="notice-panel warning-panel">
+                <strong>미응답 문항 {{ unanswered_count }}건</strong>
+                <p>준수 수준은 응답한 항목만 기준으로 계산했습니다. 미응답 문항을 채우면 결과 해석이 더 정확해집니다.</p>
+                <a class="inline-link" href="{{ url_for('diagnosis', page=1) }}">진단으로 돌아가기</a>
+            </div>
+        {% else %}
+            <div class="notice-panel success-panel">
+                <strong>모든 문항에 응답했습니다.</strong>
+                <p>현재 결과는 선택한 규정 기준으로 전체 문항을 반영합니다.</p>
+            </div>
+        {% endif %}
+    </article>
+</section>
+
+<section class="glass-card priority-card">
+    <div class="section-head compact-head">
+        <p class="eyebrow">주의사항 및 개선 필요 항목</p>
+        <h2>위반·미흡 항목 요약</h2>
+        <p class="section-copy">개선 우선순위가 높은 항목부터 보여줍니다.</p>
+    </div>
+
+    {% if priority_findings %}
+        <div class="finding-list">
+            {% for item in priority_findings %}
+                <article class="finding-item finding-{{ item.status }}">
+                    <div class="finding-head">
+                        <span class="status-badge status-{{ item.status }}">{{ item.status_label }}</span>
+                        <strong>{{ item.number }}. {{ item.title }}</strong>
+                    </div>
+                    <p class="finding-question">{{ item.question }}</p>
+                    <p><strong>응답:</strong> {{ item.answer_summary }}</p>
+                    <p><strong>문제가 되는 사항:</strong> {{ item.issue }}</p>
+                    <p><strong>판정 이유:</strong> {{ item.reason }}</p>
+                    <p><strong>개선 방향:</strong> {{ item.action }}</p>
+                    <small>{{ item.legal_basis }}</small>
+                </article>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="notice-panel success-panel">
+            <strong>현재 위반 또는 미흡으로 분류된 항목이 없습니다.</strong>
+            <p>권장 항목과 충족 항목을 중심으로 계속 유지·개선하면 됩니다.</p>
+        </div>
+    {% endif %}
+</section>
+
+<section class="content-grid two-col regulation-summary-grid">
+    {% for group in regulation_groups %}
+        <article class="glass-card regulation-card">
+            <div class="regulation-head">
+                <div>
+                    <p class="eyebrow">{{ group.subtitle }}</p>
+                    <h2>{{ group.title }}</h2>
+                </div>
+                <div class="mini-score">
+                    <strong>{{ group.score }}%</strong>
+                    <span>규정별 점수</span>
+                </div>
+            </div>
+            <div class="status-grid compact-status-grid">
+                {% for card in group.status_cards %}
+                    <article class="status-card status-{{ card.key }} small-card">
+                        <strong>{{ card.label }}</strong>
+                        <span class="status-count">{{ card.count }}</span>
+                    </article>
+                {% endfor %}
+            </div>
+        </article>
+    {% endfor %}
+</section>
+
+<section class="glass-card detail-card">
+    <div class="section-head compact-head">
+        <p class="eyebrow">세부 진단 결과</p>
+        <h2>문항별 상세 판정</h2>
+    </div>
+
+    {% for group in regulation_groups %}
+        <details class="result-section" open>
+            <summary>{{ group.title }} · {{ group.subtitle }}</summary>
+            {% if group.sections %}
+                {% for section in group.sections %}
+                    <div class="detail-section-block">
+                        <h3>{{ section['name'] }}</h3>
+                        <div class="detail-list">
+                            {% for item in section['items'] %}
+                                <article class="detail-item">
+                                    <div class="detail-head">
+                                        <div>
+                                            <p class="question-meta">Q{{ item.number }}</p>
+                                            <strong>{{ item.title }}</strong>
+                                        </div>
+                                        <span class="status-badge status-{{ item.status }}">{{ item.status_label }}</span>
+                                    </div>
+                                    <p>{{ item.question }}</p>
+                                    <p><strong>응답:</strong> {{ item.answer_summary }}</p>
+                                    <p><strong>판정:</strong> {{ item.summary }}</p>
+                                    <p><strong>판단 근거:</strong> {{ item.reason }}</p>
+                                    <p><strong>권고 조치:</strong> {{ item.action }}</p>
+                                    <small>{{ item.legal_basis }}</small>
+                                </article>
+                            {% endfor %}
+                        </div>
+                    </div>
+                {% endfor %}
+            {% else %}
+                <p class="empty-copy">아직 응답된 문항이 없습니다.</p>
+            {% endif %}
+        </details>
+    {% endfor %}
+</section>
+
+{% if unanswered_items %}
+<section class="glass-card unanswered-card">
+    <div class="section-head compact-head">
+        <p class="eyebrow">미응답 문항</p>
+        <h2>추가 응답이 필요한 항목</h2>
+    </div>
+    <div class="bullet-columns">
+        {% for item in unanswered_items %}
+            <article class="bullet-card">
+                <strong>Q{{ item.number }} · {{ item.regulation }}</strong>
+                <p>{{ item.title }}</p>
+                <small>{{ item.section }}</small>
+            </article>
+        {% endfor %}
+    </div>
+</section>
+{% endif %}
+
+<section class="footer-actions">
+    <a class="secondary-button" href="{{ url_for('reset_assessment') }}">처음으로 돌아가기</a>
+    <a class="primary-button" href="{{ url_for('print_report') }}" target="_blank" rel="noopener">PDF 출력</a>
+</section>
+{% endblock %}

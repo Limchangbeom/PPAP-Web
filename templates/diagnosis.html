@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+
+{% block title %}PPAP | 진단{% endblock %}
+
+{% block body_class %}diagnosis-page{% endblock %}
+
+{% block content %}
+<section class="progress-panel glass-card sticky-card">
+    <div class="progress-copy">
+        <p class="eyebrow">진단 진행 상태</p>
+        <h1><span data-current-page-label>{{ current_page }}</span> / <span data-total-pages-label>{{ total_pages }}</span> 페이지</h1>
+    </div>
+    <div class="progress-meta">
+        <div class="progress-badges">
+            {% for regulation in selected_regulations %}
+                <span class="meta-pill">{{ regulation }}</span>
+            {% endfor %}
+            {% if 'GDPR' in selected_regulations %}
+                <span class="meta-pill subtle-pill">{{ gdpr_role_label }}</span>
+            {% endif %}
+        </div>
+        <div class="progress-track" aria-hidden="true">
+            <span data-progress-fill style="width: {{ progress_percent }}%;"></span>
+        </div>
+        <div class="progress-stats">
+            <span>응답 완료율 <span data-progress-percent>{{ progress_percent }}</span>%</span>
+        </div>
+    </div>
+</section>
+
+<section class="glass-card form-shell">
+    <div class="section-head compact-head">
+        <p class="eyebrow">진단 페이지</p>
+        <h2>현재 페이지의 문항을 모두 응답해야 다음 단계로 이동할 수 있습니다</h2>
+        <p class="section-copy">페이지 이동 시 현재 응답은 서버 측 상태에 저장되며, 조건에 따라 후속 문항이 자동으로 나타납니다.</p>
+    </div>
+
+    {% if consistency_issues %}
+        <div class="consistency-panel">
+            <strong>응답 간 확인이 필요한 항목</strong>
+            <ul class="bullet-list compact-bullets">
+                {% for issue in consistency_issues %}
+                    <li>{{ issue.message }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+    {% endif %}
+
+    <form method="post" class="diagnosis-form" data-diagnosis-form>
+        <input type="hidden" name="page" value="{{ current_page }}" data-page-input>
+
+        <div class="question-stack">
+            {% for question in all_questions %}
+                {% set saved_answer = responses.get(question.id) %}
+                <article
+                    class="question-card {% if question.id in invalid_question_ids %}is-invalid{% endif %} {% if question.id in issue_question_ids %}has-consistency-issue{% endif %}"
+                    data-question-card
+                    data-question-id="{{ question.id }}"
+                    data-page-slot="{{ question.page_slot }}"
+                    data-visible-if='{{ question.visible_if_json }}'
+                    {% if not (question.is_visible and question.is_current_page) %}hidden{% endif %}
+                >
+                    <div class="question-head">
+                        <div>
+                            <p class="question-meta"><span data-question-seq></span> · {{ question.regulation }} · {{ question.section }}</p>
+                            <p class="question-label">{{ question.title }}</p>
+                            <h3 class="question-primary">{{ question.question }}</h3>
+                        </div>
+                        <span class="question-count" data-question-count></span>
+                    </div>
+
+                    <div class="inline-law-card">
+                        <strong>관련 법령 요약</strong>
+                        <p>관련 조문 · {{ question.legal_basis }}</p>
+                        {% if question.inline_law_details %}
+                            <ul class="inline-law-list">
+                                {% for detail in question.inline_law_details %}
+                                    <li>{{ detail }}</li>
+                                {% endfor %}
+                            </ul>
+                        {% endif %}
+                        {% if question.inline_term_details %}
+                            <div class="inline-term-stack">
+                                <strong>용어 설명</strong>
+                                {% for detail in question.inline_term_details %}
+                                    <small>{{ detail }}</small>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="option-grid {% if question.type == 'multi' %}is-multi{% endif %}">
+                        {% for option in question.choices %}
+                            {% if question.type == 'multi' %}
+                                {% set checked = saved_answer is iterable and saved_answer is not string and option.value in saved_answer %}
+                            {% else %}
+                                {% set checked = saved_answer == option.value %}
+                            {% endif %}
+
+                            <label class="option-tile {% if checked %}is-checked{% endif %}" data-option-tile>
+                                <input
+                                    type="{{ 'checkbox' if question.type == 'multi' else 'radio' }}"
+                                    name="{{ question.id }}"
+                                    value="{{ option.value }}"
+                                    {% if checked %}checked{% endif %}
+                                    {% if question.type == 'multi' and question.none_value and option.value == question.none_value %}data-none-option="true"{% endif %}
+                                >
+                                <span>{{ option.label }}</span>
+                            </label>
+                        {% endfor %}
+                    </div>
+
+                    {% if question.id in invalid_question_ids %}
+                        <p class="field-error">이 문항에 응답해야 다음 단계로 이동할 수 있습니다.</p>
+                    {% endif %}
+                </article>
+            {% endfor %}
+        </div>
+
+        <div class="pager-bar">
+            <div class="pager-copy">
+                <strong>현재 페이지 <span data-current-page-copy>{{ current_page }}</span> / <span data-total-pages-copy>{{ total_pages }}</span></strong>
+                <span>남은 페이지 <span data-remaining-pages>{{ total_pages - current_page }}</span></span>
+            </div>
+            <div class="pager-actions">
+                <button type="submit" name="action" value="prev" class="secondary-button" data-navigation-action="prev" {% if current_page == 1 %}hidden{% endif %}>이전 페이지</button>
+                <button type="submit" name="action" value="next" class="primary-button" data-navigation-action="next" {% if current_page >= total_pages %}hidden{% endif %}>다음 페이지</button>
+                <button type="submit" name="action" value="complete" class="primary-button" data-navigation-action="complete" {% if current_page < total_pages %}hidden{% endif %}>진단 완료</button>
+            </div>
+        </div>
+    </form>
+</section>
+{% endblock %}
