@@ -220,6 +220,9 @@ code {
 
 .hero-map-layout {
     grid-template-columns: minmax(0, 1.08fr) minmax(340px, 0.92fr);
+    grid-template-areas:
+        "map   gdpr"
+        "sel   ccpa";
     align-items: start;
 }
 
@@ -251,6 +254,7 @@ code {
 }
 
 .hero-selector-card {
+    grid-area: sel;
     align-self: start;
 }
 
@@ -258,8 +262,26 @@ code {
     align-self: start;
 }
 
+.law-card-gdpr {
+    grid-area: gdpr;
+}
+
+.law-card-ccpa {
+    grid-area: ccpa;
+}
+
 .hero-map-card {
+    grid-area: map;
     align-self: stretch;
+}
+
+.law-card-foot {
+    grid-area: auto;
+    justify-self: auto;
+    margin: 0;
+    color: var(--ink-soft);
+    font-size: 0.78rem;
+    line-height: 1.5;
 }
 
 .hero-copy {
@@ -570,17 +592,22 @@ code {
 }
 
 .dot-korea {
-    fill: var(--brand-deep);
+    fill: transparent;
     stroke: #fff;
 }
 
-.dot-eu,
+.dot-eu {
+    fill: var(--brand);
+    stroke: #fff;
+}
+
 .dot-us {
-    fill: rgba(255, 255, 255, 0.96);
+    fill: var(--teal);
+    stroke: #fff;
 }
 
 .pulse-korea {
-    fill: rgba(11, 94, 215, 0.18);
+    fill: rgba(16, 42, 67, 0.12);
     stroke: none;
     animation: pulse 2.4s ease-in-out infinite;
 }
@@ -756,6 +783,7 @@ code {
 .law-law-block {
     display: grid;
     gap: 10px;
+    min-width: 0;
     padding: 16px 18px;
     border: 1px solid var(--line);
     border-radius: 18px;
@@ -787,17 +815,42 @@ code {
 
 .law-update-list {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: 8px;
     margin: 0;
-    padding: 0;
+    max-height: 344px;
+    padding: 0 6px 4px 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(11, 94, 215, 0.35) transparent;
     list-style: none;
+}
+
+.law-update-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.law-update-list::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.law-update-list::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: rgba(11, 94, 215, 0.3);
+}
+
+.law-update-list::-webkit-scrollbar-thumb:hover {
+    background: rgba(11, 94, 215, 0.5);
 }
 
 .law-update-item {
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 10px 12px;
+    min-width: 0;
+    padding: 10px 4px 10px 12px;
     border: 1px solid var(--line);
     border-radius: 14px;
     background: rgba(250, 252, 255, 0.9);
@@ -816,13 +869,16 @@ code {
 
 .law-update-title {
     flex: 1;
+    min-width: 0;
+    overflow-wrap: anywhere;
     font-weight: 600;
     line-height: 1.5;
 }
 
 .law-detail-trigger {
     flex-shrink: 0;
-    padding: 8px 14px;
+    max-width: 96px;
+    padding: 8px 10px;
     border-radius: 999px;
     border: 1px solid rgba(11, 94, 215, 0.3);
     background: rgba(255, 255, 255, 0.94);
@@ -837,13 +893,6 @@ code {
     transform: translateY(-2px);
     background: linear-gradient(135deg, var(--brand-deep), var(--brand));
     color: #fff;
-}
-
-.law-panel-note {
-    margin: 0;
-    color: var(--ink-soft);
-    font-size: 0.85rem;
-    line-height: 1.6;
 }
 
 .choice-chip,
@@ -1764,9 +1813,14 @@ code {
         grid-template-columns: 1fr;
     }
 
-    .hero-map-layout {
-        grid-template-columns: 1fr;
-    }
+.hero-map-layout {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+        "map"
+        "sel"
+        "gdpr"
+        "ccpa";
+}
 
     .hero-main-col {
         grid-template-columns: 1fr;

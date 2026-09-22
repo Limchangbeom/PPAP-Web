@@ -6,7 +6,6 @@
 
 {% block content %}
 <section class="hero-panel hero-map-layout">
-    <div class="hero-main-col">
     <article class="glass-card map-card hero-map-card">
         <div class="section-head compact-head">
             <p class="eyebrow">적용 권역</p>
@@ -29,26 +28,26 @@
                     </defs>
 
                     <g class="region-halos">
-                        <ellipse class="halo halo-gdpr" cx="532" cy="168" rx="64" ry="42" />
-                        <ellipse class="halo halo-ccpa" cx="270" cy="205" rx="98" ry="54" />
+                        <ellipse class="halo halo-gdpr" cx="468" cy="180" rx="64" ry="42" />
+                        <ellipse class="halo halo-ccpa" cx="206" cy="208" rx="98" ry="54" />
                     </g>
 
                     <g class="routes">
-                        <path class="route route-gdpr" d="M764 253 C718 213,633 183,533 169" />
-                        <path class="route route-ccpa" d="M764 253 C682 186,477 156,275 201" />
+                        <path class="route route-gdpr" d="M790 206 C720 178,580 156,468 182" />
+                        <path class="route route-ccpa" d="M790 206 C640 135,340 135,140 206" />
                     </g>
 
                     <g class="dots">
-                        <circle class="dot dot-korea" cx="764" cy="253" r="8" />
-                        <circle class="dot dot-eu" cx="533" cy="169" r="8" />
-                        <circle class="dot dot-us" cx="275" cy="201" r="8" />
-                        <circle class="pulse pulse-korea" cx="764" cy="253" r="12" />
+                        <circle class="dot dot-korea" cx="790" cy="206" r="8" />
+                        <circle class="dot dot-eu" cx="468" cy="182" r="8" />
+                        <circle class="dot dot-us" cx="140" cy="206" r="8" />
+                        <circle class="pulse pulse-korea" cx="790" cy="206" r="12" />
                     </g>
 
                     <g class="map-labels">
-                        <text x="783" y="247">대한민국</text>
-                        <text x="482" y="156">EU·EEA</text>
-                        <text x="203" y="190">캘리포니아·미국</text>
+                        <text x="809" y="200">대한민국</text>
+                        <text x="417" y="169">EU·EEA</text>
+                        <text x="68" y="195">캘리포니아·미국</text>
                     </g>
                 </svg>
             </div>
@@ -98,16 +97,15 @@
             <button type="submit" class="primary-button large-button">진단 시작</button>
         </form>
     </article>
-    </div>
 
-    <article class="glass-card law-card hero-law-card">
-        <div class="section-head compact-head">
-            <p class="eyebrow">공지사항</p>
-            <h2>법률개정 소식</h2>
-        </div>
+    {% for law in law_updates.laws %}
+        <article class="glass-card law-card hero-law-card {% if law.key == 'GDPR' %}law-card-gdpr{% else %}law-card-ccpa{% endif %}">
+            <div class="section-head compact-head">
+                <p class="eyebrow">공지사항</p>
+                <h2>법률개정 소식 · {{ law.title }}</h2>
+            </div>
 
-        <div class="law-panel">
-            {% for law in law_updates.laws %}
+            <div class="law-panel">
                 <article class="law-law-block">
                     <div class="law-law-head">
                         <strong>{{ law.title }} · {{ law.subtitle }}</strong>
@@ -133,17 +131,16 @@
                         {% endfor %}
                     </ul>
                 </article>
-            {% endfor %}
-
-            <p class="law-panel-note">
-                {% if law_updates.fetched_at %}
-                    공식 소스(EUR-Lex · CPPA) 조회 시각: {{ law_updates.fetched_at }}
-                {% else %}
-                    외부 소스 조회가 일시적으로 불가해 등록 정보를 기준으로 표시 중입니다.
-                {% endif %}
-            </p>
-        </div>
-    </article>
+                <p class="law-card-foot">
+                    {% if law_updates.fetched_at %}
+                        {{ law.title }} 소식 반영 시각: {{ law_updates.fetched_at }}
+                    {% else %}
+                        외부 소스 조회가 일시적으로 불가해 등록 정보를 기준으로 표시 중입니다.
+                    {% endif %}
+                </p>
+            </div>
+        </article>
+    {% endfor %}
 </section>
 
 <div class="modal-overlay" id="lawModal" role="dialog" aria-modal="true" aria-label="법률개정 상세">
