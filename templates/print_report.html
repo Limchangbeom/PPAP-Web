@@ -13,13 +13,14 @@
                 <p class="eyebrow">{{ project_name }} · {{ project_full_name }}</p>
                 <h1>개인정보 처리방침 진단 리포트</h1>
                 <p class="report-subtitle">
-                    선택한 법령과 응답 결과를 기준으로 현재 준수 상태, 우선 개선 과제, 문항별 판단 근거를
-                    한 번에 공유할 수 있도록 정리한 보고서입니다.
+                    {{ selected_regulation_text }}에 대한 진단 결과를 바탕으로, 현재 준수 상태와
+                    위반·미흡 항목, 그리고 각 문항별 판정 근거를 서술으로 정리한 보고서입니다.
                 </p>
                 <div class="report-meta-list">
                     <span>생성 일시 · {{ generated_at }}</span>
                     <span>선택 법령 · {{ selected_regulation_text }}</span>
                     <span>응답 완료율 · {{ completion_rate }}% ({{ completion_count }} / {{ total_questions }})</span>
+                    <span>종합 점수 · {{ score }}%</span>
                 </div>
             </div>
             <div class="report-score-panel">
@@ -30,28 +31,33 @@
 
         <section class="report-block break-safe">
             <div class="report-block-head">
-                <p class="eyebrow">핵심 요약</p>
-                <h2>핵심 요약</h2>
+                <p class="eyebrow">결과 요약</p>
+                <h2>핵심 결과</h2>
             </div>
-
-            <div class="report-summary-grid">
-                {% for card in status_cards %}
-                    <article class="report-metric-card status-{{ card.key }}">
-                        <strong>{{ card.label }}</strong>
-                        <span>{{ card.count }}건</span>
-                        <small>{{ card.description }}</small>
-                    </article>
-                {% endfor %}
-            </div>
-
+            <p>
+                이 리포트는 {{ selected_regulation_text }} 기준으로 {{ total_questions }}개 문항을 진단한 결과를
+                정리한 것입니다. 전체 {{ completion_count }}개 문항에 응답하여 {{ completion_rate }}%의 완료율을
+                기록하였으며, 종합 준수 수준은 {{ score }}%로 산출됩니다.
+            </p>
+            {% if status_cards %}
+            <p>
+                상태별 분류 결과, <strong>위반</strong> 항목이 {{ status_cards[0].count }}건,
+                <strong>미흡</strong> 항목이 {{ status_cards[1].count }}건,
+                <strong>충족</strong> 항목이 {{ status_cards[2].count }}건,
+                <strong>권장</strong> 항목이 {{ status_cards[3].count }}건입니다.
+                위반 및 미흡 항목은 아래에서 상세히 서술하며, 해당 항목의 개선이 우선적으로 필요합니다.
+            </p>
+            {% endif %}
             {% if priority_findings %}
-                <p class="report-summary-note">
-                    현재 위반 또는 미흡으로 분류된 항목은 {{ priority_findings|length }}건이며, 아래 우선 개선 과제부터 순서대로 검토하는 것을 권장합니다.
-                </p>
+            <p>
+                위반 또는 미흡으로 분류된 항목은 총 {{ priority_findings|length }}건입니다.
+                아래에서 각 항목의 질문, 응답, 판정 이유 및 개선 방향을 순서대로 서술합니다.
+            </p>
             {% else %}
-                <p class="report-summary-note is-positive">
-                    현재 위반 또는 미흡으로 분류된 항목은 없습니다. 권장 항목과 충족 항목을 중심으로 운영·문서 일치 여부를 유지 점검하면 됩니다.
-                </p>
+            <p>
+                현재 위반 또는 미흡으로 분류된 항목은 없습니다. 권장 항목과 충족 항목을 중심으로
+                운영·문서 일치 여부를 유지 점검하면 됩니다.
+            </p>
             {% endif %}
         </section>
 
@@ -60,109 +66,106 @@
                 <p class="eyebrow">규정 개요</p>
                 <h2>규정별 개요</h2>
             </div>
-
-            <div class="report-regulation-grid">
-                {% for group in regulation_groups %}
-                    <article class="report-regulation-card">
-                        <div class="report-regulation-head">
-                            <div>
-                                <p class="eyebrow">{{ group.subtitle }}</p>
-                                <h3>{{ group.title }}</h3>
-                            </div>
-                            <div class="report-mini-score">
-                                <strong>{{ group.score }}%</strong>
-                                <span>규정별 점수</span>
-                            </div>
-                        </div>
-                        <div class="report-summary-grid compact-grid">
-                            {% for card in group.status_cards %}
-                                <article class="report-metric-card status-{{ card.key }}">
-                                    <strong>{{ card.label }}</strong>
-                                    <span>{{ card.count }}건</span>
-                                </article>
-                            {% endfor %}
-                        </div>
-                    </article>
+            {% for group in regulation_groups %}
+            <p>
+                <strong>{{ group.title }}</strong> ({{ group.subtitle }})의 규정별 점수는 {{ group.score }}%입니다.
+                아래에서 해당 규정의 각 항목별 판정 결과를 서술로 정리합니다.
+            </p>
+            {% if group.sections %}
+                {% for section in group.sections %}
+                <p><strong>{{ section['name'] }}</strong> ({{ section['items']|length }}개 문항)</p>
+                {% for item in section['items'] %}
+                <div class="result-item-block">
+                <p>
+                    Q{{ item.number }}. {{ item.title }}: 응답은 "{{ item.answer_summary }}"이며,
+                    판정 결과는 <strong>{{ item.status_label }}</strong>입니다. {{ item.summary }}.
+                </p>
+                <p><strong>판단 근거:</strong> {{ item.reason }}</p>
+                <p><strong>권고 조치:</strong> {{ item.action }}</p>
+                <p><strong>관련 조문:</strong> {{ item.legal_basis }}</p>
+                </div>
                 {% endfor %}
-            </div>
+                {% endfor %}
+            {% else %}
+            <p>아직 응답된 문항이 없습니다.</p>
+            {% endif %}
+            {% endfor %}
         </section>
 
-        <section class="report-block">
+        {% if priority_findings %}
+        <section class="report-block break-safe">
             <div class="report-block-head">
                 <p class="eyebrow">우선 개선 과제</p>
                 <h2>우선 개선 과제</h2>
             </div>
-
-            {% if priority_findings %}
-                <div class="report-item-stack">
-                    {% for item in priority_findings %}
-                        <article class="report-item report-item-priority break-safe">
-                            <div class="report-item-head">
-                                <div>
-                                    <p class="question-meta">Q{{ item.number }} · {{ item.regulation }} · {{ item.section }}</p>
-                                    <strong>{{ item.title }}</strong>
-                                </div>
-                                <span class="status-badge status-{{ item.status }}">{{ item.status_label }}</span>
-                            </div>
-                            <p><strong>질문</strong> {{ item.question }}</p>
-                            <p><strong>응답</strong> {{ item.answer_summary }}</p>
-                            <p><strong>판정 요약</strong> {{ item.summary }}</p>
-                            <p><strong>개선 방향</strong> {{ item.action }}</p>
-                            <small>관련 조문 · {{ item.legal_basis }}</small>
-                        </article>
-                    {% endfor %}
-                </div>
-            {% else %}
-                <p class="report-empty-copy">우선 개선 과제로 분류된 항목이 없습니다.</p>
-            {% endif %}
+            <p>
+                아래는 우선적으로 개선해야 할 위반 및 미흡 항목들입니다. 각 항목의 문제점과 개선 방향을
+                서술으로 정리하였으며, 순서대로 검토할 것을 권장합니다.
+            </p>
+            <div class="report-item-stack">
+                {% for item in priority_findings %}
+                <article class="report-item report-item-priority break-safe">
+                    <p><strong>[{{ item.status_label }}] Q{{ item.number }}. {{ item.title }}</strong> — {{ item.regulation }} {{ item.section }}</p>
+                    <p><strong>질문:</strong> {{ item.question }}</p>
+                    <p><strong>응답:</strong> {{ item.answer_summary }}</p>
+                    <p><strong>문제가 되는 사항:</strong> {{ item.issue }}</p>
+                    <p><strong>판정 이유:</strong> {{ item.reason }}</p>
+                    <p><strong>개선 방향:</strong> {{ item.action }}</p>
+                    <small>관련 조문 · {{ item.legal_basis }}</small>
+                </article>
+                {% endfor %}
+            </div>
         </section>
+        {% endif %}
 
-        {% for group in regulation_groups %}
-            <section class="report-block report-detail-block">
-                <div class="report-block-head">
-                    <p class="eyebrow">{{ group.subtitle }}</p>
-                    <h2>{{ group.title }} 세부 결과</h2>
-                </div>
+        {% if unanswered_items %}
+        <section class="report-block break-safe">
+            <div class="report-block-head">
+                <p class="eyebrow">미응답 문항</p>
+                <h2>추가 응답이 필요한 항목</h2>
+            </div>
+            <p>
+                아래 {{ unanswered_items|length }}개 문항에 아직 응답하지 않았습니다.
+                이 항목들의 응답을 추가하면 전체 진단 결과가 더 정확해집니다.
+            </p>
+            {% for item in unanswered_items %}
+            <p><strong>Q{{ item.number }}. {{ item.regulation }} {{ item.section }}</strong> — {{ item.title }}</p>
+            {% endfor %}
+        </section>
+        {% endif %}
 
-                {% if group.sections %}
-                    {% for section in group.sections %}
-                        <section class="report-chapter break-safe">
-                            <div class="report-chapter-head">
-                                <h3>{{ section['name'] }}</h3>
-                                <span>{{ section['items']|length }}개 문항</span>
-                            </div>
-                            <div class="report-item-stack">
-                                {% for item in section['items'] %}
-                                    <article class="report-item break-safe">
-                                        <div class="report-item-head">
-                                            <div>
-                                                <p class="question-meta">Q{{ item.number }}</p>
-                                                <strong>{{ item.title }}</strong>
-                                            </div>
-                                            <span class="status-badge status-{{ item.status }}">{{ item.status_label }}</span>
-                                        </div>
-                                        <p><strong>질문</strong> {{ item.question }}</p>
-                                        <p><strong>응답</strong> {{ item.answer_summary }}</p>
-                                        <p><strong>판정</strong> {{ item.summary }}</p>
-                                        <p><strong>판단 항목</strong> {{ item.description }}</p>
-                                        <p><strong>권고 조치</strong> {{ item.action }}</p>
-                                        <small>관련 조문 · {{ item.legal_basis }}</small>
-                                    </article>
-                                {% endfor %}
-                            </div>
-                        </section>
-                    {% endfor %}
-                {% else %}
-                    <p class="report-empty-copy">표시할 세부 결과가 없습니다.</p>
-                {% endif %}
-            </section>
-        {% endfor %}
+        <section class="report-block break-safe">
+            <div class="report-block-head">
+                <p class="eyebrow">본문</p>
+                <h2>세부 진단 결과</h2>
+            </div>
+            <p>
+                아래는 각 규정별로 문항별 상세 판정 결과를 서술으로 정리한 것입니다.
+                각 문항의 질문, 응답, 판정, 판단 근거 및 권고 조치를 확인할 수 있습니다.
+            </p>
+            {% for group in regulation_groups %}
+            <h3>{{ group.title }} — {{ group.subtitle }}</h3>
+            <p>이 규정의 총 점수는 {{ group.score }}%입니다.</p>
+            {% if group.sections %}
+                {% for section in group.sections %}
+                <h4>{{ section['name'] }}</h4>
+                {% for item in section['items'] %}
+                <p><strong>Q{{ item.number }}. {{ item.title }}</strong></p>
+                <p><strong>질문:</strong> {{ item.question }}</p>
+                <p><strong>응답:</strong> {{ item.answer_summary }}</p>
+                <p><strong>판정:</strong> {{ item.status_label }}. {{ item.summary }}</p>
+                <p><strong>판단 근거:</strong> {{ item.reason }}</p>
+                <p><strong>권고 조치:</strong> {{ item.action }}</p>
+                <small>관련 조문 · {{ item.legal_basis }}</small>
+                {% endfor %}
+                {% endfor %}
+            {% else %}
+            <p>표시할 세부 결과가 없습니다.</p>
+            {% endif %}
+            {% endfor %}
+        </section>
     </main>
 
-    <script>
-        window.addEventListener('load', function () {
-            window.print();
-        });
-    </script>
+    <script src="{{ url_for('static', filename='js/app.js') }}" defer></script>
 </body>
 </html>

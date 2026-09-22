@@ -12,20 +12,6 @@ function syncSelectableState() {
     });
 }
 
-function syncGdprRolePanel() {
-    const gdprToggle = document.querySelector('[data-gdpr-toggle]');
-    const rolePanel = document.querySelector('[data-gdpr-role-panel]');
-    if (!gdprToggle || !rolePanel) {
-        return;
-    }
-
-    const enabled = gdprToggle.checked;
-    rolePanel.classList.toggle('is-hidden', !enabled);
-    rolePanel.querySelectorAll('input[name="gdpr_role"]').forEach((input) => {
-        input.disabled = !enabled;
-    });
-}
-
 function syncMapState() {
     const scene = document.querySelector('[data-regulation-map]');
     if (!scene) {
@@ -289,10 +275,202 @@ function validateDiagnosisForm(form) {
     return !firstInvalid;
 }
 
+function getGuidanceData() {
+    const el = document.getElementById('guidance-data');
+    if (!el) {
+        return {};
+    }
+    try {
+        return JSON.parse(el.textContent || '{}');
+    } catch (_error) {
+        return {};
+    }
+}
+
+function createGuidanceElement(tag, text) {
+    const el = document.createElement(tag);
+    if (text) {
+        el.textContent = text;
+    }
+    return el;
+}
+
+function openGuidanceModal(data) {
+    const body = document.getElementById('modalBody');
+    const overlay = document.getElementById('guidanceModal');
+    if (!body || !overlay || !data) {
+        return;
+    }
+    body.innerHTML = '';
+    body.appendChild(createGuidanceElement('h2', '가이드'));
+
+    if (data.text) {
+        body.appendChild(createGuidanceElement('h3', '진단항목의 지문'));
+        body.appendChild(createGuidanceElement('p', data.text));
+    }
+
+    if (data.legalBasis) {
+        body.appendChild(createGuidanceElement('h3', '관련법령(원문)'));
+        body.appendChild(createGuidanceElement('p', data.legalBasis));
+    }
+
+    if ((data.lawDetails || []).length > 0) {
+        body.appendChild(createGuidanceElement('h3', '관련법령(해석)'));
+        const ul = document.createElement('ul');
+        data.lawDetails.forEach((item) => {
+            ul.appendChild(createGuidanceElement('li', item));
+        });
+        body.appendChild(ul);
+    }
+
+    if (data.desc) {
+        body.appendChild(createGuidanceElement('h3', '진단항목의 근거'));
+        body.appendChild(createGuidanceElement('p', (data.desc || '').replace('판단 포인트: ', '')));
+    }
+
+    if ((data.termDetails || []).length > 0) {
+        body.appendChild(createGuidanceElement('h3', '용어'));
+        const ul = document.createElement('ul');
+        data.termDetails.forEach((item) => {
+            ul.appendChild(createGuidanceElement('li', item));
+        });
+        body.appendChild(ul);
+    }
+
+    overlay.classList.add('active');
+}
+
+function closeGuidanceModal() {
+    const overlay = document.getElementById('guidanceModal');
+    if (overlay) {
+        overlay.classList.remove('active');
+    }
+}
+
+function getLawUpdatesData() {
+    const el = document.getElementById('law-updates-data');
+    if (!el) {
+        return null;
+    }
+    try {
+        return JSON.parse(el.textContent || 'null');
+    } catch (_error) {
+        return null;
+    }
+}
+
+function openLawUpdateModal(lawKey, index) {
+    const data = getLawUpdatesData();
+    const body = document.getElementById('lawModalBody');
+    const overlay = document.getElementById('lawModal');
+    if (!body || !overlay || !data) {
+        return;
+    }
+    const law = (data.laws || []).find((item) => item.key === lawKey);
+    const update = law && law.updates ? law.updates[index] : null;
+    if (!update) {
+        return;
+    }
+    body.innerHTML = '';
+    body.appendChild(createGuidanceElement('h2', `${law.title} · ${update.title}`));
+    body.appendChild(createGuidanceElement('p', `개정일 ${update.date}${update.status ? ` · ${update.status}` : ''}`));
+    body.appendChild(createGuidanceElement('h3', '개요'));
+    body.appendChild(createGuidanceElement('p', update.summary || ''));
+
+    if ((update.details || []).length > 0) {
+        body.appendChild(createGuidanceElement('h3', '변경 내용'));
+        const ul = document.createElement('ul');
+        update.details.forEach((item) => {
+            ul.appendChild(createGuidanceElement('li', item));
+        });
+        body.appendChild(ul);
+    }
+
+    if (update.source_url) {
+        const link = document.createElement('a');
+        link.href = update.source_url;
+        link.target = '_blank';
+        link.rel = 'noopener';
+        link.className = 'source-link';
+        link.textContent = '공식 소스(EUR-Lex · CPPA)에서 확인하기';
+        body.appendChild(link);
+    }
+
+    overlay.classList.add('active');
+}
+
+function closeLawModal() {
+    const overlay = document.getElementById('lawModal');
+    if (overlay) {
+        overlay.classList.remove('active');
+    }
+}
+
+function initLawUpdateModal() {
+    document.querySelectorAll('[data-law-key]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const lawKey = btn.getAttribute('data-law-key');
+            const index = Number.parseInt(btn.getAttribute('data-law-index') || '0', 10);
+            openLawUpdateModal(lawKey, index);
+        });
+    });
+
+    const closeBtn = document.getElementById('lawModalClose');
+    if (closeBtn) {
+        closeBtn.addEventListener('click', closeLawModal);
+    }
+    const overlay = document.getElementById('lawModal');
+    if (overlay) {
+        overlay.addEventListener('click', (event) => {
+            if (event.target === overlay) {
+                closeLawModal();
+            }
+        });
+    }
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+            closeLawModal();
+        }
+    });
+}
+
+function initGuidanceModal() {
+    const guidanceData = getGuidanceData();
+    document.querySelectorAll('[data-guidance-id]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const qId = btn.getAttribute('data-guidance-id');
+            openGuidanceModal(guidanceData[qId]);
+        });
+    });
+
+    const closeBtn = document.getElementById('modalClose');
+    if (closeBtn) {
+        closeBtn.addEventListener('click', closeGuidanceModal);
+    }
+    const overlay = document.getElementById('guidanceModal');
+    if (overlay) {
+        overlay.addEventListener('click', (event) => {
+            if (event.target === overlay) {
+                closeGuidanceModal();
+            }
+        });
+    }
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+            closeGuidanceModal();
+        }
+    });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     syncSelectableState();
-    syncGdprRolePanel();
     syncMapState();
+    initGuidanceModal();
+    initLawUpdateModal();
+
+    if (document.body.classList.contains('report-page')) {
+        window.print();
+    }
 
     document.addEventListener('change', (event) => {
         const target = event.target;
@@ -302,7 +480,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         handleNoneCheckbox(target);
         syncSelectableState();
-        syncGdprRolePanel();
         syncMapState();
 
         const form = target.closest('[data-diagnosis-form]');

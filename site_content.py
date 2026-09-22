@@ -48,7 +48,7 @@ USER_PROCESS_STEPS = [
     {
         "step": "01",
         "title": "규정 선택",
-        "detail": "진단 대상 규정을 GDPR, CCPA 중에서 선택하고,\nGDPR은 개인정보처리자 또는 처리수탁자 기준을 함께 정합니다.",
+        "detail": "진단 대상 규정을 GDPR, CCPA 중에서 선택합니다.",
     },
     {
         "step": "02",

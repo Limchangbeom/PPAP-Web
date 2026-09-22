@@ -6,6 +6,7 @@
 
 {% block content %}
 <section class="hero-panel hero-map-layout">
+    <div class="hero-main-col">
     <article class="glass-card map-card hero-map-card">
         <div class="section-head compact-head">
             <p class="eyebrow">적용 권역</p>
@@ -68,6 +69,7 @@
         </div>
 
         <form method="post" action="{{ url_for('start_diagnosis') }}" class="regulation-form" data-regulation-form>
+            {{ csrf_input() }}
             <div class="selection-grid">
                 <label class="selection-tile {% if 'GDPR' in selected_regulations %}is-selected{% endif %}" data-card-toggle>
                     <input type="checkbox" name="selected_regulations" value="GDPR" {% if 'GDPR' in selected_regulations %}checked{% endif %} data-gdpr-toggle>
@@ -86,23 +88,6 @@
                 </label>
             </div>
 
-            <div class="role-panel {% if 'GDPR' not in selected_regulations %}is-hidden{% endif %}" data-gdpr-role-panel>
-                <div class="role-panel-copy">
-                    <strong>GDPR 역할 선택</strong>
-                    <p>GDPR 진단 시 적용할 현재 역할을 선택하세요.</p>
-                </div>
-                <div class="inline-options two-up">
-                    <label class="choice-chip {% if gdpr_role == 'controller' %}is-checked{% endif %}">
-                        <input type="radio" name="gdpr_role" value="controller" {% if gdpr_role == 'controller' %}checked{% endif %}>
-                        <span>개인정보처리자</span>
-                    </label>
-                    <label class="choice-chip {% if gdpr_role == 'processor' %}is-checked{% endif %}">
-                        <input type="radio" name="gdpr_role" value="processor" {% if gdpr_role == 'processor' %}checked{% endif %}>
-                        <span>처리수탁자</span>
-                    </label>
-                </div>
-            </div>
-
             <div class="helper-row selection-helper">
                 <span>선택한 법령 정보는 서버 측 세션 상태에 저장됩니다.</span>
                 {% if selected_regulations %}
@@ -113,6 +98,73 @@
             <button type="submit" class="primary-button large-button">진단 시작</button>
         </form>
     </article>
+    </div>
+
+    <article class="glass-card law-card hero-law-card">
+        <div class="section-head compact-head">
+            <p class="eyebrow">공지사항</p>
+            <h2>법률개정 소식</h2>
+        </div>
+
+        <div class="law-panel">
+            {% for law in law_updates.laws %}
+                <article class="law-law-block">
+                    <div class="law-law-head">
+                        <strong>{{ law.title }} · {{ law.subtitle }}</strong>
+                        {% if law.source_status == 'ok' %}
+                            <span class="law-source-status">공식 소스 조회됨</span>
+                        {% else %}
+                            <span class="law-source-status is-fallback">등록 정보 기준</span>
+                        {% endif %}
+                    </div>
+                    <ul class="law-update-list">
+                        {% for update in law.updates %}
+                            <li class="law-update-item">
+                                <span class="law-update-date">{{ update.date }}</span>
+                                <span class="law-update-title">{{ update.title }}</span>
+                                <button
+                                    type="button"
+                                    class="law-detail-trigger"
+                                    data-law-key="{{ law.key }}"
+                                    data-law-index="{{ loop.index0 }}"
+                                    aria-label="{{ update.title }} 자세히 보기"
+                                >자세히보기</button>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                </article>
+            {% endfor %}
+
+            <p class="law-panel-note">
+                {% if law_updates.fetched_at %}
+                    공식 소스(EUR-Lex · CPPA) 조회 시각: {{ law_updates.fetched_at }}
+                {% else %}
+                    외부 소스 조회가 일시적으로 불가해 등록 정보를 기준으로 표시 중입니다.
+                {% endif %}
+            </p>
+        </div>
+    </article>
+</section>
+
+<div class="modal-overlay" id="lawModal" role="dialog" aria-modal="true" aria-label="법률개정 상세">
+    <div class="modal-content">
+        <button class="modal-close" id="lawModalClose" aria-label="닫기">&times;</button>
+        <div id="lawModalBody"></div>
+    </div>
+</div>
+
+<script type="application/json" id="law-updates-data">
+{{ law_updates | tojson }}
+</script>
+
+<section class="glass-card disclaimer-compact">
+    <p class="eyebrow" style="color: var(--red);">⚠ 주의사항 · 본 진단의 책임 소재에 대하여</p>
+    <div class="disclaimer-box">
+        <p class="disclaimer-lead"><strong>본 진단 도구는 개인정보 처리방침의 준수 여부를 참고하기 위한 보조 도구입니다.</strong></p>
+        <p>진단 결과는 법적 근거 이해를 돕기 위한 것이며, 최종적인 법적 판단과 책임은 <strong>사용자에게 있습니다.</strong></p>
+        <p>모든 판단·조치는 사용자 책임 하에 이루어져야 하며, 실제 분쟁·규제 대응 시에는 반드시 법률 전문가의 자문을 받으십시오.</p>
+        <p>본 서비스는 정보를 제공하는 목적으로만 사용되며, 진단 결과의 정확성·완전성에 대해 책임지지 않습니다.</p>
+    </div>
 </section>
 
 <section class="content-grid intro-selector-grid">

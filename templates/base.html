@@ -6,6 +6,10 @@
     <title>{% block title %}{{ project_name }}{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
 </head>
+{% macro csrf_input() %}
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+{% endmacro %}
+
 <body class="page-{{ request.endpoint|default('app') }} {% block body_class %}{% endblock %}">
     <div class="page-shell">
         <header class="site-header">

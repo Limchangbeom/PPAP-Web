@@ -15,9 +15,6 @@
             {% for regulation in selected_regulations %}
                 <span class="meta-pill">{{ regulation }}</span>
             {% endfor %}
-            {% if 'GDPR' in selected_regulations %}
-                <span class="meta-pill subtle-pill">{{ gdpr_role_label }}</span>
-            {% endif %}
         </div>
         <div class="progress-track" aria-hidden="true">
             <span data-progress-fill style="width: {{ progress_percent }}%;"></span>
@@ -28,6 +25,25 @@
     </div>
 </section>
 
+{% if consistency_issues %}
+    <div class="consistency-panel">
+        <strong>⚠ 응답 간 확인이 필요한 항목</strong>
+        <ul class="bullet-list compact-bullets">
+            {% for issue in consistency_issues %}
+                <li>{{ issue.message }}</li>
+            {% endfor %}
+        </ul>
+        <p class="consistency-note">위 항목은 현재 페이지에 표시된 관련 문항과 함께 확인하십시오.</p>
+    </div>
+{% endif %}
+
+{% if unanswered_count and unanswered_count <= 2 %}
+    <div class="warning-panel" style="padding: 18px 20px; border-radius: 18px; border: 1px solid rgba(199, 119, 0, 0.28); background: linear-gradient(180deg, rgba(255, 244, 224, 0.94), rgba(255, 255, 255, 0.96));">
+        <strong>미응답 문항 {{ unanswered_count }}건</strong>
+        <p>아래 표시된 관련 문항에 응답해야 합니다.</p>
+    </div>
+{% endif %}
+
 <section class="glass-card form-shell">
     <div class="section-head compact-head">
         <p class="eyebrow">진단 페이지</p>
@@ -35,30 +51,22 @@
         <p class="section-copy">페이지 이동 시 현재 응답은 서버 측 상태에 저장되며, 조건에 따라 후속 문항이 자동으로 나타납니다.</p>
     </div>
 
-    {% if consistency_issues %}
-        <div class="consistency-panel">
-            <strong>응답 간 확인이 필요한 항목</strong>
-            <ul class="bullet-list compact-bullets">
-                {% for issue in consistency_issues %}
-                    <li>{{ issue.message }}</li>
-                {% endfor %}
-            </ul>
-        </div>
-    {% endif %}
-
     <form method="post" class="diagnosis-form" data-diagnosis-form>
+        {{ csrf_input() }}
         <input type="hidden" name="page" value="{{ current_page }}" data-page-input>
 
         <div class="question-stack">
             {% for question in all_questions %}
                 {% set saved_answer = responses.get(question.id) %}
+                {% set is_issue_card = question.id in issue_question_ids %}
+                {% set is_unanswered = saved_answer is none %}
                 <article
-                    class="question-card {% if question.id in invalid_question_ids %}is-invalid{% endif %} {% if question.id in issue_question_ids %}has-consistency-issue{% endif %}"
+                    class="question-card {% if question.id in invalid_question_ids %}is-invalid{% endif %} {% if is_issue_card %}has-consistency-issue{% endif %} {% if is_unanswered and is_issue_card %}is-unanswered-issue{% endif %}"
                     data-question-card
                     data-question-id="{{ question.id }}"
                     data-page-slot="{{ question.page_slot }}"
                     data-visible-if='{{ question.visible_if_json }}'
-                    {% if not (question.is_visible and question.is_current_page) %}hidden{% endif %}
+                    {% if not (question.is_visible and question.is_current_page) and not is_issue_card %}hidden{% endif %}
                 >
                     <div class="question-head">
                         <div>
@@ -69,25 +77,9 @@
                         <span class="question-count" data-question-count></span>
                     </div>
 
-                    <div class="inline-law-card">
-                        <strong>관련 법령 요약</strong>
-                        <p>관련 조문 · {{ question.legal_basis }}</p>
-                        {% if question.inline_law_details %}
-                            <ul class="inline-law-list">
-                                {% for detail in question.inline_law_details %}
-                                    <li>{{ detail }}</li>
-                                {% endfor %}
-                            </ul>
-                        {% endif %}
-                        {% if question.inline_term_details %}
-                            <div class="inline-term-stack">
-                                <strong>용어 설명</strong>
-                                {% for detail in question.inline_term_details %}
-                                    <small>{{ detail }}</small>
-                                {% endfor %}
-                            </div>
-                        {% endif %}
-                    </div>
+                    <button type="button" class="guidance-trigger" data-guidance-id="{{ question.id }}" aria-label="가이드 열기">
+                        가이드 보기 (관련 법령 · 용어 설명)
+                    </button>
 
                     <div class="option-grid {% if question.type == 'multi' %}is-multi{% endif %}">
                         {% for option in question.choices %}
@@ -96,7 +88,6 @@
                             {% else %}
                                 {% set checked = saved_answer == option.value %}
                             {% endif %}
-
                             <label class="option-tile {% if checked %}is-checked{% endif %}" data-option-tile>
                                 <input
                                     type="{{ 'checkbox' if question.type == 'multi' else 'radio' }}"
@@ -112,6 +103,11 @@
 
                     {% if question.id in invalid_question_ids %}
                         <p class="field-error">이 문항에 응답해야 다음 단계로 이동할 수 있습니다.</p>
+                    {% endif %}
+                    {% if is_issue_card %}
+                        <div class="consistency-message">
+                            <strong>⚠ 관련 문항 확인 필요:</strong> 위 응답은 다른 문항과 논리적 충돌이 있을 수 있습니다. 함께 확인하십시오.
+                        </div>
                     {% endif %}
                 </article>
             {% endfor %}
@@ -130,4 +126,25 @@
         </div>
     </form>
 </section>
+
+<div class="modal-overlay" id="guidanceModal" role="dialog" aria-modal="true" aria-label="가이드">
+    <div class="modal-content">
+        <button class="modal-close" id="modalClose" aria-label="닫기">&times;</button>
+        <div id="modalBody"></div>
+    </div>
+</div>
+
+<script type="application/json" id="guidance-data">
+{
+    {% for question in all_questions %}
+    "{{ question.id }}": {
+        "text": {{ question.question | tojson }},
+        "lawDetails": {{ question.inline_law_details | tojson }},
+        "termDetails": {{ question.inline_term_details | tojson }},
+        "legalBasis": {{ question.legal_basis | tojson }},
+        "desc": {{ question.description | tojson }}
+    }{{ "," if not loop.last }}
+    {% endfor %}
+}
+</script>
 {% endblock %}
