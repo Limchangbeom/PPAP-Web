@@ -500,6 +500,12 @@ def render_diagnosis_page(
             build_inline_guidance(question)
         )
         question_copy["none_value"] = question.get("evaluation", {}).get("none_value")
+        question_copy["exclusive_values"] = (
+            question.get("evaluation", {}).get("exclusive_values") or []
+        )
+        question_copy["one_of_groups"] = (
+            question.get("evaluation", {}).get("one_of_groups") or []
+        )
         question_copy["page_slot"] = math.ceil(index / effective_page_size)
         question_copy["visible_if_json"] = json.dumps(
             question.get("visible_if"), ensure_ascii=False

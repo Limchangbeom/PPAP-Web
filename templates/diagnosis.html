@@ -95,6 +95,12 @@
                                     value="{{ option.value }}"
                                     {% if checked %}checked{% endif %}
                                     {% if question.type == 'multi' and question.none_value and option.value == question.none_value %}data-none-option="true"{% endif %}
+                                    {% if question.type == 'multi' and option.value in question.exclusive_values %}data-exclusive-option="true"{% endif %}
+                                    {% if question.type == 'multi' %}
+                                        {% for group in question.one_of_groups %}
+                                            {% if option.value in group %}data-exclusive-group="{{ loop.index0 }}"{% endif %}
+                                        {% endfor %}
+                                    {% endif %}
                                 >
                                 <span>{{ option.label }}</span>
                             </label>

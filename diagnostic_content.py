@@ -415,7 +415,22 @@ def evaluate_question(question: dict, answer: str | list[str]) -> dict[str, Any]
 def _sanitize_multi_answer(question: dict, raw_values: list[str]) -> list[str] | None:
     valid_values = {choice["value"] for choice in question["choices"]}
     values = [value for value in raw_values if value in valid_values]
-    none_value = question.get("evaluation", {}).get("none_value")
+    evaluation = question.get("evaluation", {})
+
+    exclusive_values = evaluation.get("exclusive_values") or []
+    chosen_exclusive = [value for value in exclusive_values if value in values]
+    if chosen_exclusive:
+        values = chosen_exclusive
+
+    for group in evaluation.get("one_of_groups") or []:
+        chosen_in_group = [option for option in group if option in values]
+        if len(chosen_in_group) > 1:
+            keep = chosen_in_group[0]
+            values = [
+                value for value in values if value not in group or value == keep
+            ]
+
+    none_value = evaluation.get("none_value")
     if none_value and none_value in values and len(values) > 1:
         values = [value for value in values if value != none_value]
     return list(dict.fromkeys(values)) or None
