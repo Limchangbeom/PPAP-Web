@@ -2222,7 +2222,7 @@ add(single_question(
     "판단 포인트: 해외 수령자·해외 마케팅·분석 도구로 이전되는 건에 대해서도 GPC 등 옵트아웃 선호신호가 "
     "국내 건과 동일하게 존중되는지 확인합니다. 국내에서만 GPC를 존중하고 국외이전 건에서는 무시한다면 "
     "통합 옵트아웃 체계가 단절됩니다.",
-    "CCPA §1798.135, §1798.100(d)",
+    "CCPA §1798.135",
     [choice("yes", "예"), choice("no", "아니오"), choice("na", "해당 없음")],
     {"yes": "compliant", "no": "violation", "na": "recommended"},
     visible_if=condition_all(equals("ccpa_business_scope_gate", "yes"), excludes("ccpa_consumer_scope", "no")),
