@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 import json
 import math
 import sqlite3
@@ -16,7 +17,11 @@ from data.questions import (
     STATUS_LABELS,
     STATUS_ORDER,
     STATUS_SCORES,
+    checklist_question,
+    grouped_checklist_question,
+    multi_presence_question,
     question_visible,
+    single_question,
 )
 from data.guidance import LEGAL_BASIS_GUIDANCE, TERM_GUIDANCE
 
@@ -202,8 +207,8 @@ def build_inline_guidance(question: dict) -> tuple[list[str], list[str]]:
         if any(alias in legal_basis for alias in aliases):
             append_unique(guidance, text)
 
-    if not guidance:
-        append_unique(guidance, question["description"].replace("판단 포인트: ", ""))
+    # 매칭되는 법령 해설이 없으면 비워 둡니다. (description은 모달의 '진단항목의 근거'에 이미 표시되므로
+    # 여기에 다시 넣으면 같은 문장이 두 번 보입니다.)
 
     combined = " ".join(
         [
@@ -217,16 +222,6 @@ def build_inline_guidance(question: dict) -> tuple[list[str], list[str]]:
     for aliases, text in TERM_GUIDANCE:
         if any(alias.lower() in combined for alias in aliases):
             append_unique(terms, text)
-
-    if question["id"] == "gdpr_scope_detail_person":
-        guidance.insert(
-            0,
-            "여기서 자연인은 살아 있는 인간 개인을 뜻하며, 법인·단체·기관 정보는 그 자체만으로는 이 질문의 대상이 아닙니다.",
-        )
-        append_unique(
-            terms,
-            "일상적으로 말하는 '개인'보다 GDPR의 '자연인'이 더 정확한 기준이며, 살아 있는 사람과 연결되는지 여부가 핵심입니다.",
-        )
 
     return guidance[:2], terms[:2]
 
@@ -324,61 +319,123 @@ def find_first_issue_page(questions: list[dict], issues: list[dict]) -> int | No
     return min(positions)
 
 
-def evaluate_question(question: dict, answer: str | list[str]) -> dict[str, Any]:
+# 문항 생성 함수의 기본 action_hint(모든 문항에 똑같이 붙는 문구)는 결과에 그대로 쓰지 않습니다.
+DEFAULT_ACTION_HINTS = {
+    inspect.signature(func).parameters["action_hint"].default
+    for func in (
+        single_question,
+        multi_presence_question,
+        checklist_question,
+        grouped_checklist_question,
+    )
+}
+
+
+def _labels(question: dict, values) -> list[str]:
+    label_map = {choice["value"]: choice["label"] for choice in question["choices"]}
+    return [label_map.get(value, value).rstrip(". ") for value in values]
+
+
+def _join(labels: list[str]) -> str:
+    return ", ".join(f"'{label}'" for label in labels)
+
+
+# ---------------------------------------------------------------------------
+# 점수 산정 제외 규칙
+# 판정 라벨·건수는 그대로 두고, 준수 수준(%) 계산에서만 아래 응답을 뺍니다.
+#  - 응답과 무관하게 판정이 하나로 고정된 확인 문항(개인정보 범주 확인 등)
+#  - 적용 범위를 정하는 게이트 문항(적용 대상 여부, 외부 제공 여부 등)
+#  - '해당 없음'에 해당하는 응답
+# 단, 미흡·위반으로 판정된 응답('확인 필요' 등)은 항상 점수에 반영합니다.
+# ---------------------------------------------------------------------------
+SCOPE_QUESTION_IDS = {
+    "gdpr_scope_detail_person",
+    "gdpr_scope_detail_sensitive",
+    "gdpr_third_party_exists",
+    "ccpa_business_scope_gate",
+    "ccpa_consumer_scope",
+}
+NOT_APPLICABLE_VALUES = {"na"}
+NOT_APPLICABLE_ANSWERS = {
+    "gdpr_third_party_processing": {"pass_through"},
+    "gdpr_external_transfer_status": {"eu_only"},
+    "gdpr_external_transfer_special_categories": {"no"},
+}
+
+
+def is_scored(question: dict, answer: str | list[str], status: str) -> bool:
+    if status in ("violation", "insufficient"):
+        return True
     evaluation = question["evaluation"]
+    kind = evaluation["kind"]
+    if kind == "single" and len(set(evaluation["status_map"].values())) == 1:
+        return False
+    if kind == "multi_presence" and evaluation["any_status"] == evaluation["none_status"]:
+        return False
+    if question["id"] in SCOPE_QUESTION_IDS:
+        return False
+    if kind == "single":
+        if answer in NOT_APPLICABLE_VALUES:
+            return False
+        if answer in NOT_APPLICABLE_ANSWERS.get(question["id"], set()):
+            return False
+    none_value = evaluation.get("none_value")
+    if (
+        none_value
+        and isinstance(answer, list)
+        and answer == [none_value]
+        and evaluation.get("none_status") == "recommended"
+    ):
+        return False
+    return True
+
+
+def question_for_evaluation(question: dict, responses: dict) -> dict:
+    """다른 문항의 응답에 따라 판정 기준을 조정합니다.
+
+    2-02(수집 시 고지)의 국외이전 고지 항목(제13조 제1항 (f))은 EU·EEA 역외 이전이 있을 때만 요구됩니다.
+      - 3-08에서 역외 이전이 있다고 답하면: 필수 항목으로 판정
+      - 역외 이전이 없거나 외부 제공 자체가 없으면(3-08 미표시): 판정에서 제외
+      - '확인 필요'이면: 기존처럼 권장 항목으로 판정
+    """
+    if question["id"] == "gdpr_transfer_notice_requirements":
+        transfer = responses.get("gdpr_external_transfer_status")
+        evaluation = question["evaluation"]
+        if transfer == "unsure":
+            return question
+        adjusted = dict(question)
+        if transfer in ("transfer_ready", "transfer_missing"):
+            adjusted["evaluation"] = {
+                **evaluation,
+                "required_values": list(evaluation["required_values"]) + list(evaluation.get("recommended_values", [])),
+                "recommended_values": [],
+            }
+        else:
+            adjusted["evaluation"] = {**evaluation, "recommended_values": []}
+        return adjusted
+    return question
+
+
+def evaluate_question(question: dict, answer: str | list[str]) -> dict[str, Any]:
+    """응답을 판정하고, 판정 이유(reason)를 그 문항에서 실제로 충족·누락된 내용으로 만든다."""
+    evaluation = question["evaluation"]
+    kind = evaluation["kind"]
     answer_summary = format_answer(question, answer)
+    missing_labels: list[str] = []
 
-    if evaluation["kind"] == "single":
-        status = evaluation["status_map"][answer]
-    elif evaluation["kind"] == "multi_presence":
-        normalized = (
-            _sanitize_multi_answer(
-                question, list(answer) if isinstance(answer, list) else []
-            )
-            or []
-        )
-        none_value = evaluation.get("none_value")
-        if none_value and normalized == [none_value]:
-            status = evaluation["none_status"]
-        elif normalized:
-            status = evaluation["any_status"]
+    if kind == "single":
+        status_map = evaluation["status_map"]
+        status = status_map[answer]
+        if len(set(status_map.values())) == 1:
+            reason = "이후 문항의 적용 여부를 정하는 확인 문항으로, 응답에 따라 판정이 달라지지 않습니다."
+        elif status == "compliant":
+            reason = "충족 기준에 해당하는 응답입니다."
         else:
-            status = evaluation["none_status"]
-        answer_summary = format_answer(question, normalized)
-    elif evaluation["kind"] == "checklist":
-        normalized = (
-            _sanitize_multi_answer(
-                question, list(answer) if isinstance(answer, list) else []
-            )
-            or []
-        )
-        selected = set(normalized)
-        none_value = evaluation.get("none_value")
-        required = set(evaluation.get("required_values", []))
-        recommended = set(evaluation.get("recommended_values", []))
-        one_of_groups = evaluation.get("one_of_groups", [])
-        forbidden = set(evaluation.get("forbidden_values", []))
-
-        if none_value and normalized == [none_value]:
-            status = evaluation["none_status"]
-        elif selected & forbidden:
-            status = "violation"
-        else:
-            required_hits = len(selected & required)
-            all_required = required.issubset(selected)
-            groups_satisfied = all(
-                any(option in selected for option in group) for group in one_of_groups
-            )
-            all_recommended = recommended.issubset(selected) if recommended else True
-            if all_required and groups_satisfied and all_recommended:
-                status = "compliant"
-            elif all_required and groups_satisfied:
-                status = "recommended"
-            elif required_hits > 0 or selected:
-                status = "insufficient"
+            compliant = [v for v, st in status_map.items() if st == "compliant"]
+            if compliant:
+                reason = f"충족으로 판정되는 응답은 {_join(_labels(question, compliant))}입니다."
             else:
-                status = "violation"
-        answer_summary = format_answer(question, normalized)
+                reason = STATUS_SUMMARIES[status]
     else:
         normalized = (
             _sanitize_multi_answer(
@@ -386,28 +443,121 @@ def evaluate_question(question: dict, answer: str | list[str]) -> dict[str, Any]
             )
             or []
         )
+        answer_summary = format_answer(question, normalized)
         selected = set(normalized)
         none_value = evaluation.get("none_value")
-        required = set(evaluation.get("required_values", []))
-        at_least_one = set(evaluation.get("at_least_one_values", []))
+        chose_none = bool(none_value) and normalized == [none_value]
 
-        if none_value and normalized == [none_value]:
-            status = evaluation["none_status"]
-        elif required.issubset(selected) and selected & at_least_one:
-            status = "compliant"
-        elif selected & at_least_one or selected & required:
-            status = "insufficient"
-        else:
-            status = "violation"
-        answer_summary = format_answer(question, normalized)
+        if kind == "multi_presence":
+            if chose_none or not normalized:
+                status = evaluation["none_status"]
+                reason = (
+                    f"{_join(_labels(question, [none_value]))}을(를) 선택했습니다."
+                    if chose_none
+                    else "선택한 항목이 없습니다."
+                )
+                if status == "violation":
+                    reason += " 요건을 충족하는 항목이 없습니다."
+            else:
+                status = evaluation["any_status"]
+                if evaluation["any_status"] == evaluation["none_status"]:
+                    reason = "처리 중인 정보의 범주를 확인하는 문항으로, 선택 결과는 이후 문항의 표시 조건에 사용됩니다."
+                elif status == "recommended":
+                    reason = f"선택한 {len(normalized)}개 항목은 관련 후속 문항에서 추가 확인이 필요한 범주입니다."
+                else:
+                    reason = f"요건에 해당하는 항목 {len(normalized)}개를 선택했습니다."
+
+        elif kind == "checklist":
+            required = evaluation.get("required_values", [])
+            recommended = evaluation.get("recommended_values", [])
+            one_of_groups = evaluation.get("one_of_groups", [])
+            forbidden = [v for v in evaluation.get("forbidden_values", []) if v in selected]
+            missing_required = [v for v in required if v not in selected]
+            missing_recommended = [v for v in recommended if v not in selected]
+            unmet_groups = [g for g in one_of_groups if not any(v in selected for v in g)]
+
+            if chose_none:
+                status = evaluation["none_status"]
+                reason = f"{_join(_labels(question, [none_value]))}을(를) 선택했습니다."
+            else:
+                if forbidden:
+                    status = "violation"
+                else:
+                    all_required = not missing_required
+                    groups_ok = not unmet_groups
+                    if all_required and groups_ok and not missing_recommended:
+                        status = "compliant"
+                    elif all_required and groups_ok:
+                        status = "recommended"
+                    elif selected & set(required) or selected:
+                        status = "insufficient"
+                    else:
+                        status = "violation"
+
+                parts = []
+                if forbidden:
+                    parts.append(f"적법근거가 될 수 없는 항목을 선택했습니다: {_join(_labels(question, forbidden))}.")
+                if required:
+                    met = len(required) - len(missing_required)
+                    if missing_required:
+                        parts.append(f"필수 항목 {len(required)}개 중 {met}개 충족, 누락: {_join(_labels(question, missing_required))}.")
+                    else:
+                        parts.append(f"필수 항목 {len(required)}개를 모두 충족했습니다.")
+                for group in unmet_groups:
+                    parts.append(f"다음 중 하나 이상이 필요합니다: {_join(_labels(question, group))}.")
+                if missing_recommended:
+                    parts.append(f"권장 항목 누락: {_join(_labels(question, missing_recommended))}.")
+                if not parts:
+                    parts.append("요건을 모두 충족했습니다.")
+                reason = " ".join(parts)
+                missing_labels = _labels(question, missing_required + missing_recommended)
+
+        else:  # grouped_checklist
+            required = evaluation.get("required_values", [])
+            at_least_one = evaluation.get("at_least_one_values", [])
+            missing_required = [v for v in required if v not in selected]
+            picked = [v for v in at_least_one if v in selected]
+
+            if chose_none:
+                status = evaluation["none_status"]
+                reason = f"{_join(_labels(question, [none_value]))}을(를) 선택했습니다."
+            else:
+                if not missing_required and picked:
+                    status = "compliant"
+                elif picked or selected & set(required):
+                    status = "insufficient"
+                else:
+                    status = "violation"
+                parts = []
+                if picked:
+                    parts.append(f"근거 항목 {len(picked)}개를 선택했습니다.")
+                else:
+                    parts.append("근거 항목을 하나 이상 선택해야 하나 선택하지 않았습니다.")
+                if missing_required:
+                    parts.append(
+                        f"공통 확인사항 {len(required)}개 중 {len(required) - len(missing_required)}개 충족, "
+                        f"누락: {_join(_labels(question, missing_required))}."
+                    )
+                elif required:
+                    parts.append(f"공통 확인사항 {len(required)}개를 모두 충족했습니다.")
+                reason = " ".join(parts)
+                missing_labels = _labels(question, missing_required)
+
+    hint = question.get("action_hint")
+    if hint and hint not in DEFAULT_ACTION_HINTS:
+        action = hint
+    elif status in {"violation", "insufficient"} and missing_labels:
+        action = "판정 이유에 적힌 누락 항목을 문서와 실제 운영 절차에 반영하세요."
+    else:
+        action = STATUS_ACTIONS[status]
 
     return {
         "status": status,
         "status_label": STATUS_LABELS[status],
         "summary": STATUS_SUMMARIES[status],
-        "issue": question["description"],
-        "reason": STATUS_SUMMARIES[status],
-        "action": question.get("action_hint") or STATUS_ACTIONS[status],
+        "issue": question["description"].replace("판단 포인트: ", "", 1),
+        "reason": reason,
+        "action": action,
         "answer_summary": answer_summary,
     }
 
@@ -509,9 +659,10 @@ def build_results_context(state: dict) -> dict[str, Any]:
             )
             continue
 
-        evaluated = evaluate_question(question, answer)
+        evaluated = evaluate_question(question_for_evaluation(question, responses), answer)
         evaluated_items.append(
             {
+                "scored": is_scored(question, answer, evaluated["status"]),
                 "id": question["id"],
                 "number": index,
                 "regulation": question["regulation"],
@@ -558,6 +709,7 @@ def build_results_context(state: dict) -> dict[str, Any]:
         "unanswered_count": len(unanswered_items),
         "counts": counts,
         "score": _score_from_items(evaluated_items),
+        "excluded_count": sum(1 for item in evaluated_items if not item["scored"]),
         "generated_at": datetime.now().strftime("%Y.%m.%d %H:%M"),
         "status_cards": _build_status_cards(counts),
         "regulation_groups": _build_regulation_groups(
@@ -582,11 +734,12 @@ def _summarize_counts(items: list[dict]) -> dict[str, int]:
 
 
 def _build_status_cards(counts: dict[str, int]) -> list[dict]:
+    # 상태 정의는 여기 한 곳에서만 관리합니다(결과 화면 카드·PDF 요약이 함께 사용).
     descriptions = {
-        "violation": "조치가 필요한 항목",
-        "insufficient": "추가 보완이 필요한 항목",
-        "compliant": "기준을 충족한 항목",
-        "recommended": "강화를 권장하는 항목",
+        "violation": "법령상 요구사항을 충족하지 못해 즉시 조치가 필요한 항목",
+        "insufficient": "일부 요건은 갖췄으나 추가 보완이 필요한 항목",
+        "compliant": "법령상 기준을 충족한 항목",
+        "recommended": "해당 없음·적용 제외이거나, 의무는 아니지만 강화를 권장하는 항목",
     }
     return [
         {
@@ -599,11 +752,12 @@ def _build_status_cards(counts: dict[str, int]) -> list[dict]:
     ]
 
 
-def _score_from_items(items: list[dict]) -> int:
-    if not items:
-        return 0
-    total = sum(STATUS_SCORES[item["status"]] for item in items)
-    return round(total / len(items))
+def _score_from_items(items: list[dict]) -> int | None:
+    scored = [item for item in items if item.get("scored", True)]
+    if not scored:
+        return None
+    total = sum(STATUS_SCORES[item["status"]] for item in scored)
+    return round(total / len(scored))
 
 
 def _build_regulation_groups(
