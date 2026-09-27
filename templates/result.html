@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_result_macros.html" import findings_detail, regulation_tables, unanswered_list %}
 
 {% block title %}PPAP | 결과{% endblock %}
 
@@ -9,12 +10,12 @@
     <article class="glass-card">
         <div class="section-head compact-head">
             <p class="eyebrow">규정 준수 수준</p>
-            <h1>현재 진단 기준상 {{ score }}%</h1>
-            <p class="section-copy">이 결과는 {{ selected_regulation_text }}에 대한 응답을 바탕으로 산출한 준수 수준입니다. 총 {{ total_questions }}개 문항 중 {{ completion_count }}개를 응답하여 {{ completion_rate }}%의 완료율을 보이고 있습니다.</p>
+            <h1>{{ selected_regulation_text }} 진단 결과</h1>
+            <p class="section-copy">{{ total_questions }}개 문항 중 {{ completion_count }}개 응답({{ completion_rate }}%)을 바탕으로 산출했습니다.{% if excluded_count %} 적용 범위 확인 문항과 '해당 없음' 응답 {{ excluded_count }}건은 점수 산정에서 제외했습니다.{% endif %}</p>
         </div>
-        <div class="score-ring" style="--score: {{ score }}%;">
+        <div class="score-ring" style="--score: {{ score or 0 }}%;">
             <div>
-                <strong>{{ score }}%</strong>
+                <strong>{% if score is not none %}{{ score }}%{% else %}—{% endif %}</strong>
                 <span>준수 수준</span>
             </div>
         </div>
@@ -37,13 +38,8 @@
         {% if unanswered_count %}
             <div class="notice-panel warning-panel">
                 <strong>미응답 문항 {{ unanswered_count }}건</strong>
-                <p>준수 수준은 응답한 항목만 기준으로 계산했습니다. 미응답 문항을 채우면 결과 해석이 더 정확해집니다.</p>
+                <p>준수 수준은 응답한 항목만으로 계산했습니다.</p>
                 <a class="inline-link" href="{{ url_for('diagnosis', page=1) }}">진단으로 돌아가기</a>
-            </div>
-        {% else %}
-            <div class="notice-panel success-panel">
-                <strong>모든 문항에 응답했습니다.</strong>
-                <p>현재 결과는 선택한 규정 기준으로 전체 문항을 반영합니다.</p>
             </div>
         {% endif %}
     </article>
@@ -51,74 +47,30 @@
 
 <section class="glass-card">
     <div class="section-head compact-head">
-        <p class="eyebrow">결과 요약</p>
-    </div>
-
-    <div class="narrative-report">
-        {% if status_cards %}
-        <h3>상태별 분류</h3>
-        <p>선택한 규정 기준으로, 위반 항목이 {{ status_cards[0].count }}건, 미흡 항목이 {{ status_cards[1].count }}건, 충족 항목이 {{ status_cards[2].count }}건, 권장 항목이 {{ status_cards[3].count }}건입니다.</p>
-        <div class="status-legend">
-            <p><strong>위반</strong> — 법령에서 요구하는 사항을 만족하지 못해 즉시 조치가 필요한 항목입니다.</p>
-            <p><strong>미흡</strong> — 일부 요건은 갖췄으나 기준 충족을 위해 추가 보완이 필요한 항목입니다.</p>
-            <p><strong>충족</strong> — 법령상 기준을 만족하고 있는 항목으로, 현재 수준을 유지하면 됩니다.</p>
-            <p><strong>권장</strong> — 법적 의무는 아니지만 운영·문서 수준을 높이기 위해 강화를 권장하는 항목입니다.</p>
-        </div>
-        {% endif %}
-
-        {% if unanswered_count %}
-        <p class="narrative-warning">현재 {{ unanswered_count }}개 문항에 응답하지 않았습니다. 미응답 문항을 채우면 결과 해석이 더 정확해집니다. <a class="inline-link" href="{{ url_for('diagnosis', page=1) }}">진단으로 돌아가기</a></p>
-        {% else %}
-        <p>모든 문항에 응답이 완료되었습니다. 현재 결과는 {{ selected_regulation_text }} 전체 문항을 반영하고 있습니다.</p>
-        {% endif %}
-
+        <p class="eyebrow">우선 개선 과제</p>
         {% if priority_findings %}
-        <h3>위반 및 미흡 항목 상세</h3>
-        <p>총 {{ priority_findings|length }}건의 위반 또는 미흡 항목이 발견되었습니다. 아래에 각 항목을 순서대로 정리하였습니다.</p>
-        <div class="narrative-findings">
-            {% for item in priority_findings %}
-            <article class="narrative-finding">
-                <p><strong>[{{ item.status_label }}] {{ item.number }}번. {{ item.title }}</strong> — {{ item.regulation }} {{ item.section }}</p>
-                <p><strong>질문:</strong> {{ item.question }}</p>
-                <p><strong>응답:</strong> {{ item.answer_summary }}</p>
-                <p><strong>문제가 되는 사항:</strong> {{ item.issue }}</p>
-                <p><strong>판정 이유:</strong> {{ item.reason }}</p>
-                <p><strong>개선 방향:</strong> {{ item.action }}</p>
-                <small>관련 조문: {{ item.legal_basis }}</small>
-            </article>
-            {% endfor %}
-        </div>
+            <h2>위반·미흡 {{ priority_findings|length }}건</h2>
         {% else %}
-        <p>현재 위반 또는 미흡으로 분류된 항목이 없습니다. 권장 항목과 충족 항목을 중심으로 계속 유지·개선하면 됩니다.</p>
+            <h2>위반·미흡 항목 없음</h2>
         {% endif %}
-
-        {% for group in regulation_groups %}
-        <h3>{{ group.title }} — {{ group.subtitle }}</h3>
-        <p>{{ group.title }}의 전체 점수는 {{ group.score }}%입니다. 아래에 해당 규정의 각 항목별 판정 결과를 서술으로 정리하였습니다.</p>
-        {% if group.sections %}
-            {% for section in group.sections %}
-            <h4>{{ section['name'] }}</h4>
-            {% for item in section['items'] %}
-            <div class="result-item-block">
-            <p><strong>Q{{ item.number }}. {{ item.title }}</strong> — 응답: {{ item.answer_summary }}. 판정: {{ item.status_label }}. {{ item.summary }}</p>
-            <p><strong>판단 근거:</strong> {{ item.reason }}</p>
-            <p><strong>권고 조치:</strong> {{ item.action }}</p>
-            <p><strong>관련 조문:</strong> {{ item.legal_basis }}</p>
-            </div>
-            {% endfor %}
-            {% endfor %}
+    </div>
+    <div class="narrative-report">
+        {% if priority_findings %}
+            {{ findings_detail(priority_findings) }}
         {% else %}
-        <p>아직 응답된 문항이 없습니다.</p>
+            <p>충족·권장 항목의 운영과 문서가 계속 일치하는지 정기적으로 점검하세요.</p>
         {% endif %}
-        {% endfor %}
+    </div>
+</section>
 
-        {% if unanswered_items %}
-        <h3>미응답 문항</h3>
-        <p>아래 {{ unanswered_items|length }}개 문항에 아직 응답하지 않았습니다.</p>
-        {% for item in unanswered_items %}
-        <p><strong>Q{{ item.number }}. {{ item.regulation }} {{ item.section }}</strong> — {{ item.title }}</p>
-        {% endfor %}
-        {% endif %}
+<section class="glass-card">
+    <div class="section-head compact-head">
+        <p class="eyebrow">전체 판정</p>
+        <h2>규정별 문항 판정</h2>
+    </div>
+    <div class="narrative-report">
+        {{ regulation_tables(regulation_groups) }}
+        {{ unanswered_list(unanswered_items) }}
     </div>
 </section>
 
