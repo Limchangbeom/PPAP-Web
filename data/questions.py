@@ -1364,7 +1364,7 @@ add(
         "GDPR 제22조 제1항·제3항",
         [choice("yes", "예"), choice("no", "아니요")],
         {"yes": "compliant", "no": "violation"},
-        visible_if=equals("gdpr_admt_solely_automated", "yes"),
+        visible_if=condition_all(equals("gdpr_admt_solely_automated", "yes"), excludes("gdpr_admt_effects", "none")),
     )
 )
 add(
@@ -1374,7 +1374,7 @@ add(
         section,
         "6-07. 고지문과 열람 답변 포함사항",
         "고지문과 열람 요청 답변에 포함되어 있는 항목을 모두 고르시오.",
-        "판단 포인트: 자동결정 존재, 주요 판단요소, 의미 있는 논리, 예상 결과, 사람 개입 및 문의 절차를 확인합니다.",
+        "판단 포인트: 법정 고지사항은 자동결정의 존재, 관련 논리에 관한 의미 있는 정보, 정보주체에게 미치는 중요성과 예상 결과입니다. 사람의 개입·이의제기 방법과 문의 절차는 함께 안내하도록 권장합니다.",
         "GDPR 제13조 제2항 (f), 제14조 제2항 (g), 제15조 제1항 (h)",
         [
             choice("existence", "자동결정의 존재와 주요 판단요소"),
@@ -1383,8 +1383,9 @@ add(
             choice("human_object", "사람의 개입과 이의제기 방법"),
             choice("contact", "문의·재검토 절차"),
         ],
-        required_values=["existence", "logic", "impact", "human_object", "contact"],
-        visible_if=excludes("gdpr_scope_detail_inference", "no"),
+        required_values=["existence", "logic", "impact"],
+        recommended_values=["human_object", "contact"],
+        visible_if=condition_all(equals("gdpr_admt_solely_automated", "yes"), excludes("gdpr_admt_effects", "none")),
     )
 )
 add(
@@ -1398,7 +1399,7 @@ add(
         "GDPR 제9조, 제22조 제4항",
         [choice("yes", "예"), choice("no", "아니요"), choice("na", "해당 없음")],
         {"yes": "compliant", "no": "violation", "na": "recommended"},
-        visible_if=condition_all(excludes("gdpr_scope_detail_inference", "no"), excludes("gdpr_scope_detail_sensitive", "no")),
+        visible_if=condition_all(equals("gdpr_admt_solely_automated", "yes"), excludes("gdpr_admt_effects", "none"), excludes("gdpr_scope_detail_sensitive", "no")),
     )
 )
 add(
@@ -2033,11 +2034,11 @@ add(
         "CCPA",
         section,
         "2-09. 요청처리 절차",
-        "요청 처리 절차가 다음을 모두 갖추고 있는가? 접수채널 2개 이상(웹과 전화 또는 이메일), 45일 처리기한과 1회 연장, 연 2회 요청 제한, 열람 요청 시 직전 12개월분 공개.",
-        "판단 포인트: 채널 수, 처리기한, 연장 규칙, 공개 범위를 함께 확인합니다.",
+        "소비자 요청 처리 절차가 다음을 모두 갖추고 있는가? 법정 접수채널(원칙적으로 무료 전화번호를 포함한 2개 이상, 온라인으로만 사업하며 소비자와 직접 관계가 있으면 이메일 주소 1개), 요청 접수 후 45일 이내 응답(1회에 한해 45일 연장 가능), 알권리 요청 시 직전 12개월분 공개.",
+        "판단 포인트: 접수채널 요건은 사업 형태에 따라 다릅니다. 온라인 전용 사업자는 이메일 주소 1개만으로도 접수채널 요건을 충족합니다.",
         "CCPA §1798.130(a)(1)(2)",
         [
-            choice("missing", "미비 (접수채널 1개 이하, 처리기한 규정 없음)"),
+            choice("missing", "미비 (법정 접수채널 미달 또는 처리기한 규정 없음)"),
             choice("partial", "일부 미비 (일부 요건 누락)"),
             choice("good", "충족"),
         ],
@@ -2049,11 +2050,11 @@ add(
 add(single_question(
     "ccpa_sensitive_use_limit", "CCPA", section,
     "2-10. 민감정보 이용제한",
-    "민감 개인정보를 수집하는 경우, 소비자가 이용제한권을 실제로 행사할 수 있는 수단(링크 등)을 제공하는가?",
-    "판단 포인트: 민감정보 이용제한은 판매·공유 옵트아웃과 별개의 권리입니다.",
-    "CCPA §1798.121",
-    [choice("no","아니요"), choice("yes","예")],
-    {"no":"violation", "yes":"compliant"},
+    "민감 개인정보를 서비스 제공 등 법정 허용 목적을 넘어 이용·공개하는 경우, 소비자가 이용제한권을 실제로 행사할 수 있는 수단(링크 등)을 제공하는가?",
+    "판단 포인트: 이용제한권은 민감정보를 법정 허용 목적 밖으로 이용·공개할 때 적용되며, 판매·공유 옵트아웃과는 별개의 권리입니다.",
+    "CCPA §1798.121, 11 CCR §7027",
+    [choice("no","아니요"), choice("yes","예"), choice("na","해당 없음(법정 허용 목적 안에서만 이용)")],
+    {"no":"violation", "yes":"compliant", "na":"recommended"},
     visible_if=condition_all(equals("ccpa_business_scope_gate", "yes"), excludes("ccpa_scope_sensitive", "no")),
 ))
 
