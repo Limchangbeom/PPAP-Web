@@ -1,0 +1,56 @@
+{# 결과 화면(result.html)과 PDF 리포트(print_report.html)가 함께 쓰는 블록입니다. #}
+
+{# 위반·미흡 항목 상세: 결과/PDF 모두 이 블록에서 한 번만 출력합니다. #}
+{% macro findings_detail(items) %}
+<div class="narrative-findings">
+    {% for item in items %}
+    <article class="narrative-finding report-item-priority break-safe">
+        <p><strong><span class="status-badge status-{{ item.status }}">{{ item.status_label }}</span> Q{{ item.number }}. {{ item.title }}</strong> — {{ item.regulation }} {{ item.section }}</p>
+        <p><strong>질문:</strong> {{ item.question }}</p>
+        <p><strong>응답:</strong> {{ item.answer_summary }}</p>
+        <p><strong>판단 기준:</strong> {{ item.issue }}</p>
+        <p><strong>판정 이유:</strong> {{ item.reason }}</p>
+        <p><strong>개선 방향:</strong> {{ item.action }}</p>
+        <small>관련 조문 · {{ item.legal_basis }}</small>
+    </article>
+    {% endfor %}
+</div>
+{% endmacro %}
+
+{# 규정별 전체 판정: 상세 서술 없이 문항·응답·판정만 표로 보여 줍니다. #}
+{% macro regulation_tables(groups) %}
+{% for group in groups %}
+<h3>{{ group.title }} — {{ group.subtitle }} <span class="result-group-score">규정별 점수 {% if group.score is not none %}{{ group.score }}%{% else %}—{% endif %}</span></h3>
+{% if group.sections %}
+<table class="result-table">
+    <thead>
+        <tr><th scope="col">문항</th><th scope="col">응답</th><th scope="col">판정</th></tr>
+    </thead>
+    {% for section in group.sections %}
+    <tbody>
+        <tr class="result-table-section"><th colspan="3" scope="rowgroup">{{ section['name'] }}</th></tr>
+        {% for item in section['items'] %}
+        <tr>
+            <td><strong>Q{{ item.number }}.</strong> {{ item.title }}<small>{{ item.legal_basis }}</small></td>
+            <td>{{ item.answer_summary }}</td>
+            <td><span class="status-badge status-{{ item.status }}">{{ item.status_label }}</span>{% if not item.scored %}<small>점수 제외</small>{% endif %}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+    {% endfor %}
+</table>
+{% else %}
+<p>응답된 문항이 없습니다.</p>
+{% endif %}
+{% endfor %}
+{% endmacro %}
+
+{# 미응답 문항 목록(결과 라우트는 전체 응답을 요구하므로 보통은 표시되지 않습니다). #}
+{% macro unanswered_list(items) %}
+{% if items %}
+<h3>미응답 문항 {{ items|length }}건</h3>
+{% for item in items %}
+<p><strong>Q{{ item.number }}. {{ item.regulation }} {{ item.section }}</strong> — {{ item.title }}</p>
+{% endfor %}
+{% endif %}
+{% endmacro %}
