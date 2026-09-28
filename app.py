@@ -4,6 +4,7 @@ import json
 import math
 import os
 import sqlite3
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
@@ -63,11 +64,47 @@ from site_content import (
 )
 
 
+def _env_flag(name: str, default: str) -> bool:
+    """환경변수를 불리언 플래그로 읽는다.
+
+    보안 플래그이므로 "알 수 없는 값"은 안전하게 True(활성) 쪽으로 처리한다.
+    예: 값 오타("ture", "flase")가 있어도 보안 기능이 꺼지지 않는다.
+    """
+    return os.environ.get(name, default).strip().lower() not in {
+        "false",
+        "0",
+        "no",
+        "off",
+    }
+
+
+def _request_is_https() -> bool:
+    """직접 TLS termination 또는 리버스 프록시 경유 HTTPS 판별."""
+    if request.is_secure:
+        return True
+    forwarded_proto = request.headers.get("X-Forwarded-Proto", "")
+    return forwarded_proto.split(",")[0].strip().lower() == "https"
+
+
 app = Flask(__name__)
-app.config["SECRET_KEY"] = os.environ.get("FLASK_SECRET_KEY", secrets.token_hex(32))
+
+_secret_key = os.environ.get("FLASK_SECRET_KEY", "").strip()
+if not _secret_key:
+    _secret_key = secrets.token_hex(32)
+    print(
+        "[경고] FLASK_SECRET_KEY 환경변수가 설정되지 않아 임시 키를 사용합니다. "
+        "재시작하면 기존 세션이 모두 무효화됩니다.",
+        file=sys.stderr,
+    )
+
+app.config["SECRET_KEY"] = _secret_key
 app.config["DATABASE"] = str(Path(__file__).parent / "instance" / "ppap.sqlite3")
 app.instance_path = str(Path(__file__).parent / "instance")
-app.config["SESSION_COOKIE_SECURE"] = True
+# Secure 쿠키는 HTTPS 요청에서만 브라우저가 보관·전송한다.
+#   - 기본값(true): 환경변수 미설정 시 보안 쿠키 활성화(운영 안전 기본값)
+#   - HTTP 로 EC2 에서만 SESSION_COOKIE_SECURE=false 로 설정
+#   - 이후 HTTPS 적용 시 환경변수를 삭제(true)하기만 하면 된다.
+app.config["SESSION_COOKIE_SECURE"] = _env_flag("SESSION_COOKIE_SECURE", "true")
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 app.config["PERMANENT_SESSION_LIFETIME"] = 3600
@@ -80,15 +117,24 @@ Path(app.instance_path).mkdir(parents=True, exist_ok=True)
 def set_security_headers(response):
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
-    response.headers["X-XSS-Protection"] = "1; mode=block"
-    response.headers["Strict-Transport-Security"] = (
-        "max-age=31536000; includeSubDomains"
-    )
+    # 레거시 XSS Auditor 는 전부 최신 브라우저에서 제거되었다. OWASP 권고대로
+    # 0(명시적 비활성)으로 지정해 잘못된 필터 오탐을 막는다.
+    response.headers["X-XSS-Protection"] = "0"
+    # HSTS 는 HTTPS 응답에서만 의미가 있다(RFC 6797 7.2: HTTP 응답의 HSTS 는 무시됨).
+    if _request_is_https():
+        response.headers["Strict-Transport-Security"] = (
+            "max-age=31536000; includeSubDomains"
+        )
+    else:
+        response.headers.pop("Strict-Transport-Security", None)
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data:; font-src 'self' https://fonts.gstatic.com; connect-src 'self'"
     )
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+    if response.mimetype == "text/html":
+        # 진단 응답(민감정보)이 브라우저 캐시·디스크에 남지 않도록 차단
+        response.headers["Cache-Control"] = "no-store"
     return response
 
 
